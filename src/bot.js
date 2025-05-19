@@ -56,19 +56,19 @@ const ping = SCB("ping", "Simple ping command!");
 const ban = SCB("ban", "This starts banning the users");
 const add = new SlashCommandBuilder()
   .setName("add")
-  .setDescription("This adds a specified user to the bans.json file. Unless you are making your own bans.json file with Disboot, this has no use.")
-  .addUserOption(option => 
+  .setDescription("This adds a specified user to the bans.json file.")
+  .addStringOption(option =>
+    option.setName("reason")
+      .setDescription("Why are they being banned?")
+      .setRequired(true))
+  .addUserOption(option =>
     option.setName("user")
       .setDescription("Pick a user from the server (optional)")
       .setRequired(false))
-  .addStringOption(option => 
+  .addStringOption(option =>
     option.setName("userid")
       .setDescription("Manually enter a user ID (optional)")
-      .setRequired(false))
-  .addStringOption(option => 
-    option.setName("reason")
-      .setDescription("Why are they being banned?")
-      .setRequired(true));
+      .setRequired(false));
 const report = SCB("report", "Report a user to be added to Disboot");
 
 // Client.On's
