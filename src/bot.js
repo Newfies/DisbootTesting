@@ -1,6 +1,5 @@
 // Packages and Requires
 const dotenv = require("dotenv").config();
-const ini = require("ini");
 const fs = require('fs');
 const { exec } = require("child_process");
 const pm2 = require("pm2");
@@ -13,27 +12,6 @@ const client = new Client({ intents: [ GatewayIntentBits.Guilds, GatewayIntentBi
 
 // Script Variables
 const TOKEN = process.env.TOKEN;
-const configFile = fs.readFileSync('config.ini', 'utf-8');
-const configs = ini.parse(configFile).Config;
-
-// Config.ini
-if (!configs) {
-    log(`config.ini file not found.`, 3);
-    process.exit(1);
-}
-
-if (configs.autoban){
-    if (configs.autoban === true) {
-        setInterval(() => autoban(), 3600000);
-        log(`Config.ini Autoban Script registered to be ran`, 1);
-    } else if (configs.autoban === false) {
-        log(`Config.ini Autoban Script registered to not be ran`, 1);
-        return;
-    } else {
-        log(`config.ini autoban not found or not a boolean.`, 3);
-        return process.exit(1);
-    }   
-}
 
 // Custom Functions
 // Timestamp System
@@ -76,6 +54,21 @@ function SCB(name, desc) {
 // Client Slash Command Makers
 const ping = SCB("ping", "Simple ping command!");
 const ban = SCB("ban", "This starts banning the users");
+const add = new SlashCommandBuilder()
+  .setName("add")
+  .setDescription("This adds a specified user to the bans.json file. Unless you are making your own bans.json file with Disboot, this has no use.")
+  .addUserOption(option => 
+    option.setName("user")
+      .setDescription("Pick a user from the server (optional)")
+      .setRequired(false))
+  .addStringOption(option => 
+    option.setName("userid")
+      .setDescription("Manually enter a user ID (optional)")
+      .setRequired(false))
+  .addStringOption(option => 
+    option.setName("reason")
+      .setDescription("Why are they being banned?")
+      .setRequired(true));
 const report = SCB("report", "Report a user to be added to Disboot");
 
 // Client.On's
@@ -89,6 +82,9 @@ client.on("ready", async () => {
 
   await client.application.commands.create(ban); // Command for /ban
   log(`/ban command registered`, 1);
+
+  await client.application.commands.create(add); // Command for /add
+  log(`/add command registered`, 1);
 
   await client.application.commands.create(report); // Command for /report
   log(`/report command registered`, 1);
@@ -110,7 +106,7 @@ function fetchBanList() {
   return new Promise((resolve, reject) => {
     https
       .get(
-        "https://raw.githubusercontent.com/Newfies/Disboot/refs/heads/main/bans.json", // My fuggin epic "database"
+        "https://raw.githubusercontent.com/Newfies/DisbootTesting/refs/heads/main/bans.json", // My fuggin epic "database"
         (res) => {
           let data = "";
           res.on("data", (chunk) => {
@@ -171,6 +167,50 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 
+if (interaction.commandName === "add") {
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.deferReply({ ephemeral: true });
+
+      const userOption = interaction.options.getUser("user");
+      const userIdOption = interaction.options.getString("userid");
+      const reason = interaction.options.getString("reason");
+
+      let finalUserId = null;
+
+      if (userOption) {
+        finalUserId = userOption.id;
+      } else if (userIdOption) {
+        finalUserId = userIdOption;
+      } else {
+        await interaction.editReply({
+          content: "Error: You must provide either a user or a user ID.",
+        });
+        return;
+      }
+
+      const newEntry = {
+        userId: finalUserId,
+        reason: reason
+      };
+
+      try {
+        const data = fs.readFileSync("bans.json", "utf8");
+        const json = JSON.parse(data);
+        json.push(newEntry);
+        fs.writeFileSync("bans.json", JSON.stringify(json, null, 2));
+        log(`Added ${finalUserId} to bans.json with reason: ${reason}`, 1);
+        await interaction.editReply({
+          content: `Successfully added user ID \`${finalUserId}\` to bans.json.`,
+        });
+      } catch (err) {
+        log(`Failed to update bans.json: ${err.message}`, 3);
+        await interaction.editReply({
+          content: `Failed to update bans.json: ${err.message}`,
+        });
+      }
+    }
+  }
+
   if (interaction.commandName === "report") {
     if (!interaction.replied && !interaction.deferred) {
       await interaction.reply({
@@ -180,32 +220,6 @@ client.on("interactionCreate", async (interaction) => {
     }
   }
 });
-
-// Scripted Actions
-async function autoban() {
-    try {
-        const banList = await fetchBanList();
-        for (const entry of banList) {
-            const userId = entry.userId;
-            const reason = entry.reason;
-
-            for (const guild of client.guilds.cache.values()) {
-                try {
-                    await guild.members.ban(userId, { reason });
-                    log(`Banned ${userId} from ${guild.name} for "${reason}"`, 1);
-                } catch (err) {
-                    log(`Failed to ban ${userId} from ${guild.name}: ${err.message}`, 3);
-                }
-            }
-
-            await sleep(3500);
-        }
-
-        log("Autoban process complete", 1);
-    } catch (err) {
-        log(`Autoban failed: ${err.message}`, 3);
-    }
-}
 
 // Login To Bot
 client.login(TOKEN);
